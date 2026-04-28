@@ -40,7 +40,8 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # SETUP DATABASE (SQLite)
 # ==========================================
 def get_db():
-    conn = sqlite3.connect('stok_nomor.db', check_same_thread=False)
+    # Database disimpan di brankas Volume agar tidak hilang saat server restart
+    conn = sqlite3.connect('/app/data/stok_nomor.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
