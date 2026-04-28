@@ -39,9 +39,25 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # ==========================================
 # SETUP DATABASE (SQLite)
 # ==========================================
+# ==========================================
+# SETUP DATABASE (SQLite)
+# ==========================================
 def get_db():
-    # Database disimpan di brankas Volume agar tidak hilang saat server restart
-    conn = sqlite3.connect('/app/data/stok_nomor.db', check_same_thread=False)
+    # Tentukan folder penyimpanan untuk Railway
+    db_dir = '/app/data'
+    
+    # Cek apakah folder /app/data ada. Jika tidak, buat foldernya otomatis.
+    if not os.path.exists(db_dir):
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+        except Exception:
+            # Jika gagal membuat folder (misalnya saat dites di laptop lokal),
+            # simpan database di folder yang sama dengan bot.py
+            db_dir = '.'
+            
+    db_path = os.path.join(db_dir, 'stok_nomor.db')
+    
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
