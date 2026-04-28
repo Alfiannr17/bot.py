@@ -131,7 +131,7 @@ class IVASSMSClient:
             return False
         except Exception: return False
 
-    def get_otp_message(self, phone_number, phone_range, date_str):
+def get_otp_message(self, phone_number, phone_range, date_str):
         if not self.logged_in or not self.csrf_token: return None
         try:
             payload = {'_token': self.csrf_token, 'start': date_str, 'end': date_str, 'Number': phone_number, 'Range': phone_range}
@@ -139,11 +139,19 @@ class IVASSMSClient:
             response = self.scraper.post(f"{self.base_url}/portal/sms/received/getsms/number/sms", data=payload, headers=headers, timeout=10)
             if response.status_code == 200:
                 soup = BeautifulSoup(self.decompress_response(response), 'html.parser')
-                msg_elem = soup.select_one(".col-9.col-sm-6 p")
-                return msg_elem.text.strip() if msg_elem else None
+                
+                # Menggunakan target HTML baru dari Inspect Element Abang
+                msg_elem = soup.find('div', class_='msg-text')
+                sender_elem = soup.find('span', class_='cli-tag')
+                
+                message = msg_elem.text.strip() if msg_elem else None
+                sender = sender_elem.text.strip() if sender_elem else "App"
+                
+                # Mengembalikan 2 nilai sekaligus: Nama App dan Isi Pesan
+                if message:
+                    return sender, message
             return None
         except Exception: return None
-
 client = IVASSMSClient()
 
 # ==========================================
@@ -325,15 +333,19 @@ def handle_cek_otp(call):
         conn.close()
         return
 
-    today_str = datetime.now().strftime("%d/%m/%Y")
+    # PERBAIKAN FORMAT TANGGAL MENJADI YYYY-MM-DD
+    today_str = datetime.now().strftime("%Y-%m-%d")
     pesan_otp = []
 
     for row in user_numbers:
         phone, country_range = row['phone_number'], row['country']
-        msg = client.get_otp_message(phone, country_range, today_str)
-        if msg:
-            pesan_otp.append(f"📱 *{phone}*\n💬 `{msg}`")
-            # 4. BURN (HANGUSKAN): Jika berhasil dapat OTP, ubah status ke 'used' agar tidak didaur ulang
+        hasil_sms = client.get_otp_message(phone, country_range, today_str)
+        
+        # JIKA OTP DITEMUKAN (Menangkap 2 nilai: Sender dan Msg)
+        if hasil_sms:
+            sender, msg = hasil_sms
+            pesan_otp.append(f"📱 *{phone}*\n🏢 App: *{sender}*\n💬 `{msg}`")
+            # BURN (HANGUSKAN NOMOR KE 'used')
             cursor.execute("UPDATE numbers SET last_msg = ?, status = 'used' WHERE phone_number = ?", (msg, phone))
         time.sleep(1) 
     
@@ -343,7 +355,7 @@ def handle_cek_otp(call):
     current_time = datetime.now().strftime("%H:%M:%S")
 
     if pesan_otp:
-        balasan = "🔔 *OTP DITERIMA!*\n\n" + "\n\n".join(pesan_otp) + f"\n\n_Update: {current_time}_"
+        balasan = "🔔 *OTP DITERIMA!*\n\n" + "\n\n━━━━━━━━━━━━━━━\n\n".join(pesan_otp) + f"\n\n_Update: {current_time}_"
     else:
         balasan = f"⚠️ *Belum ada kode OTP masuk.*\nPastikan Anda sudah meminta kode dan tunggu beberapa detik.\n\n_Cek Terakhir: {current_time}_"
 
