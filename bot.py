@@ -37,26 +37,17 @@ logger = logging.getLogger(__name__)
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==========================================
-# SETUP DATABASE (SQLite)
-# ==========================================
-# ==========================================
-# SETUP DATABASE (SQLite)
+# SETUP DATABASE (SQLite) AMAN UNTUK RAILWAY
 # ==========================================
 def get_db():
-    # Tentukan folder penyimpanan untuk Railway
     db_dir = '/app/data'
-    
-    # Cek apakah folder /app/data ada. Jika tidak, buat foldernya otomatis.
     if not os.path.exists(db_dir):
         try:
             os.makedirs(db_dir, exist_ok=True)
         except Exception:
-            # Jika gagal membuat folder (misalnya saat dites di laptop lokal),
-            # simpan database di folder yang sama dengan bot.py
             db_dir = '.'
             
     db_path = os.path.join(db_dir, 'stok_nomor.db')
-    
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -80,7 +71,7 @@ init_db()
 admin_states = {}
 
 # ==========================================
-# CLASS SCRAPER (Mengambil OTP)
+# CLASS SCRAPER (Mengambil OTP & Nama App)
 # ==========================================
 class IVASSMSClient:
     def __init__(self):
@@ -131,7 +122,7 @@ class IVASSMSClient:
             return False
         except Exception: return False
 
-def get_otp_message(self, phone_number, phone_range, date_str):
+    def get_otp_message(self, phone_number, phone_range, date_str):
         if not self.logged_in or not self.csrf_token: return None
         try:
             payload = {'_token': self.csrf_token, 'start': date_str, 'end': date_str, 'Number': phone_number, 'Range': phone_range}
@@ -152,6 +143,7 @@ def get_otp_message(self, phone_number, phone_range, date_str):
                     return sender, message
             return None
         except Exception: return None
+
 client = IVASSMSClient()
 
 # ==========================================
@@ -209,56 +201,61 @@ def show_main_menu(chat_id, first_name):
     )
     bot.send_message(chat_id, teks, reply_markup=markup, parse_mode='Markdown')
 
-# --- SUB-MENU USER ---
+# --- SUB-MENU USER (Anti-Crash Double Click) ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('menu_'))
 def handle_user_menu(call):
     chat_id = call.message.chat.id
     menu = call.data.split('_')[1]
 
-    if menu == "panduan":
-        teks = "📖 *PANDUAN PENGGUNAAN*\n\n1. Klik *Get Number* lalu pilih negara.\n2. Masukkan nomor yang diberikan ke aplikasi WhatsApp.\n3. Jika WA sudah mengirim kode, klik tombol *Cek OTP* di bot ini.\n4. OTP akan muncul di layar."
-        bot.edit_message_text(teks, chat_id, call.message.message_id, parse_mode='Markdown')
-        markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
-        bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=markup)
-
-    elif menu == "histori":
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT phone_number, last_msg FROM numbers WHERE chat_id = ? AND last_msg IS NOT NULL", (chat_id,))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        if not rows:
-            teks = "📜 *HISTORI OTP*\n\nBelum ada histori OTP yang masuk."
-        else:
-            teks = "📜 *HISTORI OTP TERAKHIR*\n\n"
-            for r in rows:
-                teks += f"📱 `{r['phone_number']}`\n💬 {r['last_msg']}\n\n"
-                
-        markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
-        bot.edit_message_text(teks, chat_id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
-
-    elif menu == "main":
-        show_main_menu(chat_id, call.from_user.first_name)
-        bot.delete_message(chat_id, call.message.message_id)
-
-    elif menu == "get": # get_number
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT country FROM numbers WHERE status = 'available'")
-        countries = [row['country'] for row in cursor.fetchall()]
-        conn.close()
-        
-        if len(countries) == 0:
-            bot.edit_message_text("❌ Maaf, stok nomor saat ini sedang kosong.", chat_id, call.message.message_id)
+    try:
+        if menu == "panduan":
+            teks = "📖 *PANDUAN PENGGUNAAN*\n\n1. Klik *Get Number* lalu pilih negara.\n2. Masukkan nomor yang diberikan ke aplikasi.\n3. Jika kode sudah dikirim, klik tombol *Cek OTP* di bot ini.\n4. OTP akan muncul di layar."
             markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
-            bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=markup)
+            bot.edit_message_text(teks, chat_id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+        elif menu == "histori":
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT phone_number, last_msg FROM numbers WHERE chat_id = ? AND last_msg IS NOT NULL", (chat_id,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            if not rows:
+                teks = "📜 *HISTORI OTP*\n\nBelum ada histori OTP yang masuk."
+            else:
+                teks = "📜 *HISTORI OTP TERAKHIR*\n\n"
+                for r in rows:
+                    teks += f"📱 `{r['phone_number']}`\n💬 {r['last_msg']}\n\n"
+                    
+            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
+            bot.edit_message_text(teks, chat_id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+        elif menu == "main":
+            show_main_menu(chat_id, call.from_user.first_name)
+            bot.delete_message(chat_id, call.message.message_id)
+
+        elif menu == "get": # get_number
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT country FROM numbers WHERE status = 'available'")
+            countries = [row['country'] for row in cursor.fetchall()]
+            conn.close()
+            
+            if len(countries) == 0:
+                markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
+                bot.edit_message_text("❌ Maaf, stok nomor saat ini sedang kosong.", chat_id, call.message.message_id, reply_markup=markup)
+            else:
+                markup = InlineKeyboardMarkup()
+                for country in countries:
+                    markup.add(InlineKeyboardButton(text=country, callback_data=f"country_{country}"))
+                markup.add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
+                bot.edit_message_text("Pilih negara yang Anda inginkan:", chat_id, call.message.message_id, reply_markup=markup)
+                
+    except telebot.apihelper.ApiTelegramException as e:
+        if "message is not modified" in str(e):
+            bot.answer_callback_query(call.id, "Sudah ditampilkan.")
         else:
-            markup = InlineKeyboardMarkup()
-            for country in countries:
-                markup.add(InlineKeyboardButton(text=country, callback_data=f"country_{country}"))
-            markup.add(InlineKeyboardButton("🔙 Kembali", callback_data="menu_main"))
-            bot.edit_message_text("Pilih negara yang Anda inginkan:", chat_id, call.message.message_id, reply_markup=markup)
+            logger.error(f"Telegram API Error: {e}")
 
 # ==========================================
 # ALUR AMBIL NOMOR & CEK OTP (User)
@@ -271,7 +268,7 @@ def handle_country_selection(call):
     conn = get_db()
     cursor = conn.cursor()
     
-    # 1. DAUR ULANG: Kembalikan nomor lama yang belum dapet OTP ke 'available' agar tak terbuang
+    # 1. DAUR ULANG: Kembalikan nomor lama yang belum dapet OTP ke 'available'
     cursor.execute("UPDATE numbers SET status = 'available', chat_id = NULL WHERE status = 'assigned' AND chat_id = ?", (chat_id,))
     
     # 2. AMBIL BARU: Cari 5 nomor baru dari stok available
@@ -285,7 +282,7 @@ def handle_country_selection(call):
         return
         
     assigned_numbers = [row['phone_number'] for row in rows]
-    # 3. KUNCI (LOCK): Set nomor ini menjadi 'assigned' ke user yang ngeklik
+    # 3. KUNCI (LOCK): Set nomor ini menjadi 'assigned'
     for num in assigned_numbers:
         cursor.execute("UPDATE numbers SET status = 'assigned', chat_id = ? WHERE phone_number = ?", (chat_id, num))
     conn.commit()
@@ -333,7 +330,7 @@ def handle_cek_otp(call):
         conn.close()
         return
 
-    # PERBAIKAN FORMAT TANGGAL MENJADI YYYY-MM-DD
+    # FORMAT TANGGAL YANG BENAR (YYYY-MM-DD)
     today_str = datetime.now().strftime("%Y-%m-%d")
     pesan_otp = []
 
@@ -341,11 +338,11 @@ def handle_cek_otp(call):
         phone, country_range = row['phone_number'], row['country']
         hasil_sms = client.get_otp_message(phone, country_range, today_str)
         
-        # JIKA OTP DITEMUKAN (Menangkap 2 nilai: Sender dan Msg)
+        # JIKA OTP DITEMUKAN
         if hasil_sms:
             sender, msg = hasil_sms
             pesan_otp.append(f"📱 *{phone}*\n🏢 App: *{sender}*\n💬 `{msg}`")
-            # BURN (HANGUSKAN NOMOR KE 'used')
+            # 4. BURN (HANGUSKAN): Jika berhasil, ubah status ke 'used'
             cursor.execute("UPDATE numbers SET last_msg = ?, status = 'used' WHERE phone_number = ?", (msg, phone))
         time.sleep(1) 
     
@@ -412,7 +409,7 @@ def handle_admin_menu(call):
         if call.data == "adm_hapus_terpakai":
             conn = get_db()
             cursor = conn.cursor()
-            # SEKARANG HANYA MENGHAPUS NOMOR YANG BENAR-BENAR SUDAH DAPAT OTP ('used')
+            # HANYA MENGHAPUS NOMOR YANG BENAR-BENAR SUDAH DAPAT OTP ('used')
             cursor.execute("DELETE FROM numbers WHERE status = 'used'")
             jml = cursor.rowcount
             conn.commit()
@@ -478,6 +475,6 @@ if __name__ == '__main__':
     if not os.path.exists("cookies.json"):
         print("⚠️ PERINGATAN: cookies.json tidak ditemukan!")
     else:
-        client.login_with_cookies()
+        client.login_with_cookies("cookies.json")
     print("🤖 Bot Berjalan...")
     bot.infinity_polling()
